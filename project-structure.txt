@@ -1,0 +1,31 @@
+coretiff_stack_viewer/
+│
+├── main.py                    # Application entry point
+├── requirements.txt           # Project dependencies
+├── README.md                  # Project documentation
+│
+├── core/                      # Core functionality
+│   ├── __init__.py
+│   ├── image_loader.py        # TIFF loading and management
+│   ├── image_processor.py     # Image processing algorithms
+│   ├── data_analyzer.py       # Data analysis tools
+│   └── export_manager.py      # Export/save functionality
+│
+├── gui/                       # GUI components
+│   ├── __init__.py
+│   ├── main_window.py         # Main application window
+│   ├── image_view.py          # Enhanced image viewing widget
+│   ├── controls_panel.py      # Control panels
+│   ├── dialogs.py             # Custom dialogs
+│   └── widgets/               # Custom widgets
+│       ├── __init__.py
+│       ├── histogram_widget.py
+│       ├── roi_tools.py
+│       ├── navigation_bar.py
+│       └── timeline_widget.py
+│
+└── utils/                     # Utility functions
+    ├── __init__.py
+    ├── config.py              # Application configuration
+    ├── logger.py              # Logging functionality
+    └── helpers.py             # Helper functions
