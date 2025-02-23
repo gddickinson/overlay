@@ -339,21 +339,6 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(QAction("Zoom Out", self, triggered=self.zoom_out))
         self.toolbar.addAction(QAction("Reset View", self, triggered=self.reset_zoom))
 
-        self.toolbar.addSeparator()
-
-        # Add display controls
-        self.fluor_toggle = QAction("Toggle Fluorescence", self)
-        self.fluor_toggle.setCheckable(True)
-        self.fluor_toggle.setChecked(self.display_settings['fluorescence_visible'])
-        self.fluor_toggle.triggered.connect(self.toggle_fluorescence)
-        self.toolbar.addAction(self.fluor_toggle)
-
-        self.mask_toggle = QAction("Toggle Mask", self)
-        self.mask_toggle.setCheckable(True)
-        self.mask_toggle.setChecked(self.display_settings['mask_visible'])
-        self.mask_toggle.triggered.connect(self.toggle_mask)
-        self.toolbar.addAction(self.mask_toggle)
-
     def toggle_fluorescence(self, checked):
         """Handle fluorescence toggle."""
         self.display_settings['fluorescence_visible'] = checked
@@ -410,15 +395,11 @@ class MainWindow(QMainWindow):
         self.timeline.frame_changed.connect(self.frame_changed.emit)
 
         # Image data signals
-        self.fluorescence_loaded.connect(self.update_display)
-        self.fluorescence_loaded.connect(self.histogram.update_histogram)
-        self.fluorescence_loaded.connect(self.navigation_bar.update_frame_count)
-        self.fluorescence_loaded.connect(self.timeline.update_timeline)
-
-        self.mask_loaded.connect(self.update_display)
+        self.fluorescence_loaded.connect(self.on_fluorescence_loaded)
+        self.mask_loaded.connect(self.on_mask_loaded)
 
         # Display settings signals
-        self.controls_panel.display_settings_changed.connect(self.update_display_settings)
+        self.controls_panel.display_settings_changed.connect(self.on_display_settings_changed)
         self.histogram.levels_changed.connect(self.update_levels)
 
         # ROI signals
@@ -428,6 +409,7 @@ class MainWindow(QMainWindow):
 
         # Analysis signals
         self.analysis_completed.connect(self.handle_analysis_completed)
+
 
     def restore_window_state(self):
         """Restore window state from settings."""
@@ -743,17 +725,34 @@ class MainWindow(QMainWindow):
             self.display_settings.update(settings)
             self.update_display()
 
+    def on_fluorescence_loaded(self, stack):
+        """Handle fluorescence stack loading."""
+        self.update_display()
+        self.histogram.update_histogram(stack.get_frame(0))
+        self.navigation_bar.update_frame_count(stack)
+        self.timeline.update_timeline(stack)
+
+    def on_mask_loaded(self, stack):
+        """Handle mask stack loading."""
+        self.update_display()
+
+    def on_display_settings_changed(self, settings):
+        """Handle changes to display settings."""
+        self.logger.debug(f"Display settings changed: {settings}")
+        self.display_settings.update(settings)
+        self.update_display()
+
     def update_display(self):
         """Update the image display."""
         self.logger.debug("Updating display")
 
-        # Get current frames
+        # Get current frames based on visibility settings
         fluor_frame = None
-        if self.fluorescence_stack and self.display_settings['fluorescence_visible']:
+        if self.display_settings['fluorescence_visible'] and self.fluorescence_stack:
             fluor_frame = self.fluorescence_stack.get_frame(self.current_frame)
 
         mask_frame = None
-        if self.mask_stack and self.display_settings['mask_visible']:
+        if self.display_settings['mask_visible'] and self.mask_stack:
             mask_frame = self.mask_stack.get_frame(self.current_frame)
 
         # Update image view with all display settings
@@ -765,10 +764,9 @@ class MainWindow(QMainWindow):
             dict(self.display_settings)  # Pass a copy to prevent recursion
         )
 
-        # Update histogram if we have a fluorescence frame
-        if fluor_frame is not None:
+        # Update histogram if we have a visible fluorescence frame
+        if fluor_frame is not None and self.display_settings['fluorescence_visible']:
             self.histogram.update_histogram(fluor_frame)
-
 
     def zoom_in(self):
         """Zoom in the image view."""

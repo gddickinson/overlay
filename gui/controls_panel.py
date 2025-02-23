@@ -47,6 +47,7 @@ class ControlsPanel(QWidget):
         self.setup_display_tab()
         self.tab_widget.addTab(self.display_tab, "Display")
 
+
         # Create processing tab
         self.processing_tab = QWidget()
         self.setup_processing_tab()
@@ -71,16 +72,12 @@ class ControlsPanel(QWidget):
         # Fluorescence visibility
         self.fluor_checkbox = QCheckBox("Show Fluorescence")
         self.fluor_checkbox.setChecked(self.display_settings['fluorescence_visible'])
-        self.fluor_checkbox.stateChanged.connect(
-            lambda state: self.toggle_fluorescence(state == Qt.CheckState.Checked)
-        )
+        self.fluor_checkbox.clicked.connect(self.handle_fluor_visibility)
 
         # Mask visibility
         self.mask_checkbox = QCheckBox("Show Mask")
         self.mask_checkbox.setChecked(self.display_settings['mask_visible'])
-        self.mask_checkbox.stateChanged.connect(
-            lambda state: self.toggle_mask(state == Qt.CheckState.Checked)
-        )
+        self.mask_checkbox.clicked.connect(self.handle_mask_visibility)
 
         visibility_layout.addWidget(self.fluor_checkbox, 0, 0)
         visibility_layout.addWidget(self.mask_checkbox, 1, 0)
@@ -444,12 +441,36 @@ class ControlsPanel(QWidget):
 
         self.display_settings_changed.emit(self.display_settings)
 
-    def toggle_fluorescence(self, visible):
-        """Toggle fluorescence visibility."""
-        self.display_settings['fluorescence_visible'] = visible
-        self.display_settings_changed.emit(self.display_settings)
+    # def toggle_fluorescence(self, visible):
+    #     """Toggle fluorescence visibility."""
+    #     self.display_settings['fluorescence_visible'] = visible
+    #     self.display_settings_changed.emit(self.display_settings)
 
-    def toggle_mask(self, visible):
-        """Toggle mask visibility."""
-        self.display_settings['mask_visible'] = visible
-        self.display_settings_changed.emit(self.display_settings)
+    # def toggle_mask(self, visible):
+    #     """Toggle mask visibility."""
+    #     self.display_settings['mask_visible'] = visible
+    #     self.display_settings_changed.emit(self.display_settings)
+
+    # def on_fluorescence_visibility_changed(self, state):
+    #     """Handle changes to fluorescence visibility."""
+    #     self.display_settings['fluorescence_visible'] = (state == Qt.CheckState.Checked)
+    #     self.display_settings_changed.emit(self.display_settings)
+
+    # def on_mask_visibility_changed(self, state):
+    #     """Handle changes to mask visibility."""
+    #     self.display_settings['mask_visible'] = (state == Qt.CheckState.Checked)
+    #     self.display_settings_changed.emit(self.display_settings)
+
+    def handle_fluor_visibility(self, checked):
+        """Handle fluorescence visibility change."""
+        self.logger.debug(f"Fluorescence visibility changed to: {checked}")
+        self.display_settings['fluorescence_visible'] = checked
+        settings = dict(self.display_settings)  # Make a copy
+        self.display_settings_changed.emit(settings)
+
+    def handle_mask_visibility(self, checked):
+        """Handle mask visibility change."""
+        self.logger.debug(f"Mask visibility changed to: {checked}")
+        self.display_settings['mask_visible'] = checked
+        settings = dict(self.display_settings)  # Make a copy
+        self.display_settings_changed.emit(settings)

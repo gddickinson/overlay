@@ -93,6 +93,8 @@ class EnhancedImageView(QWidget):
 
         self._updating = True
         try:
+            self.logger.debug(f"Update image called with settings: {display_settings}")
+
             # Update stored values only if provided
             if image is not None:
                 self.current_image = image
@@ -105,55 +107,71 @@ class EnhancedImageView(QWidget):
 
             # Get display settings
             if display_settings is None:
-                display_settings = {
-                    'colormap': 'viridis',
-                    'auto_contrast': True,
-                    'min_level': 0,
-                    'max_level': 255
-                }
+                display_settings = {}
 
-            # If neither image nor overlay is visible, clear the display
-            if (not display_settings.get('fluorescence_visible', True) and
-                not display_settings.get('mask_visible', True)):
+            # Clear view if nothing should be visible
+            if not any([
+                display_settings.get('fluorescence_visible', True),
+                display_settings.get('mask_visible', True)
+            ]):
+                self.logger.debug("Nothing visible, clearing view")
                 self.view.clear()
-                self._updating = False
                 return
 
-            # Create display image based on visibility
-            if not display_settings.get('fluorescence_visible', True):
-                self.current_image = None
-            if not display_settings.get('mask_visible', True):
-                self.current_overlay = None
+            # Start with fluorescence image if visible
+            display_image = None
+            if display_settings.get('fluorescence_visible', True) and self.current_image is not None:
+                self.logger.debug("Setting fluorescence image")
+                if len(self.current_image.shape) == 2:
+                    display_image = np.stack([self.current_image] * 3, axis=2)
+                else:
+                    display_image = self.current_image.copy()
 
-            # Create the combined display image
-            display_image = self._create_display_image()
+            # Add mask overlay if visible
+            if (display_settings.get('mask_visible', True) and
+                self.current_overlay is not None and
+                self.overlay_alpha > 0 and
+                display_image is not None):
+                self.logger.debug("Adding mask overlay")
+                binary_mask = self.current_overlay > 0
+
+                for i in range(3):
+                    mask_channel = np.zeros_like(binary_mask, dtype=np.uint8)
+                    mask_channel[binary_mask] = self.overlay_color[i]
+                    display_image[..., i] = (
+                        display_image[..., i] * (1 - self.overlay_alpha * binary_mask) +
+                        mask_channel * self.overlay_alpha
+                    ).astype(np.uint8)
+
+            # If we don't have an image to display, clear the view
             if display_image is None:
+                self.logger.debug("No image to display, clearing view")
                 self.view.clear()
-                self._updating = False
                 return
 
-            # Get levels
-            levels = self._get_display_levels(display_image, display_settings)
-
-            # Update image in view
-            if len(display_image.shape) == 3 and display_image.shape[2] == 3:
-                # RGB image - transpose for PyQtGraph
+            # Update the view
+            self.logger.debug(f"Setting final image with shape {display_image.shape}")
+            if len(display_image.shape) == 3:
                 self.view.setImage(
                     display_image.transpose(2, 0, 1),
-                    levels=levels
+                    autoLevels=display_settings.get('auto_contrast', False)
                 )
             else:
-                # Grayscale image
                 self.view.setImage(
                     display_image,
-                    levels=levels
+                    autoLevels=display_settings.get('auto_contrast', False)
                 )
 
-                # Apply colormap if specified
-                if 'colormap' in display_settings:
-                    lut = self._get_colormap_lut(display_settings['colormap'])
-                    if lut is not None:
-                        self.view.getImageItem().setLookupTable(lut)
+            # Apply colormap if needed
+            if 'colormap' in display_settings and len(display_image.shape) == 2:
+                lut = self._get_colormap_lut(display_settings['colormap'])
+                if lut is not None:
+                    self.view.getImageItem().setLookupTable(lut)
+
+        except Exception as e:
+            self.logger.error(f"Error in update_image: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
 
         finally:
             self._updating = False
