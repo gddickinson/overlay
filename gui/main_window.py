@@ -6,6 +6,8 @@ import sys
 import os
 import logging
 from pathlib import Path
+import numpy as np
+import cv2
 
 from PyQt6.QtWidgets import (QMainWindow, QApplication, QFileDialog, QMessageBox,
                             QSplitter, QStatusBar, QMenuBar, QMenu, QToolBar,
@@ -21,7 +23,7 @@ from core.export_manager import ExportManager
 from gui.image_view import EnhancedImageView
 from gui.controls_panel import ControlsPanel
 from gui.dialogs import (SettingsDialog, ContrastDialog, ProjectionDialog,
-                        RegistrationDialog, AnalysisDialog, ExportDialog)
+                        RegistrationDialog, AnalysisDialog, ExportDialog, ResultsDialog)
 from gui.widgets.histogram_widget import HistogramWidget
 from gui.widgets.roi_tools import ROIToolbar
 from gui.widgets.navigation_bar import NavigationBar
@@ -402,13 +404,17 @@ class MainWindow(QMainWindow):
         self.controls_panel.display_settings_changed.connect(self.on_display_settings_changed)
         self.histogram.levels_changed.connect(self.update_levels)
 
-        # ROI signals
+        # ROI signals from ImageView
         self.image_view.roi_created.connect(self.handle_roi_created)
         self.image_view.roi_modified.connect(self.handle_roi_modified)
         self.image_view.roi_deleted.connect(self.handle_roi_deleted)
 
-        # Analysis signals
-        self.analysis_completed.connect(self.handle_analysis_completed)
+        # ROI signals from toolbar
+        self.roi_toolbar.roi_delete_requested.connect(self.delete_roi)
+        self.roi_toolbar.roi_clear_requested.connect(self.clear_rois)
+        self.roi_toolbar.roi_analysis_requested.connect(self.analyze_roi)
+        self.roi_toolbar.roi_selected.connect(self.select_roi)
+        self.roi_toolbar.roi_type_changed.connect(self.image_view.set_roi_type)
 
 
     def restore_window_state(self):
@@ -1096,45 +1102,156 @@ class MainWindow(QMainWindow):
 
     # ROI handling
     def handle_roi_created(self, roi_data):
-        """Handle ROI creation."""
-        self.logger.info(f"ROI created: {roi_data['id']}")
+      """Handle ROI creation."""
+      self.logger.debug(f"Handling ROI creation with data: {roi_data}")
 
-        # Add to ROIs dictionary
-        self.rois[roi_data['id']] = roi_data
+      try:
+          # Store ROI data
+          self.rois[roi_data['id']] = roi_data
+          self.logger.debug(f"Stored ROI data for {roi_data['id']}")
 
-        # Update status bar
-        self.statusBar.showMessage(f"ROI created: {roi_data['id']}", 3000)
+          # Add to ROI list in toolbar
+          self.roi_toolbar.add_roi(roi_data)
+          self.logger.debug(f"Added ROI {roi_data['id']} to toolbar list")
+
+          # Update status bar
+          self.statusBar.showMessage(f"ROI created: {roi_data['id']}", 3000)
+
+      except Exception as e:
+          self.logger.error(f"Error handling ROI creation: {str(e)}")
+          import traceback
+          self.logger.error(traceback.format_exc())
 
     def handle_roi_modified(self, roi_data):
         """Handle ROI modification."""
-        self.logger.info(f"ROI modified: {roi_data['id']}")
+        self.logger.debug(f"Handling ROI modification with data: {roi_data}")
 
-        # Update ROIs dictionary
-        self.rois[roi_data['id']] = roi_data
+        try:
+            # Update stored ROI data
+            self.rois[roi_data['id']] = roi_data
+            self.logger.debug(f"Updated stored data for ROI {roi_data['id']}")
+
+            # Update ROI in toolbar list
+            self.roi_toolbar.update_roi(roi_data)
+            self.logger.debug(f"Updated ROI {roi_data['id']} in toolbar list")
+
+        except Exception as e:
+            self.logger.error(f"Error handling ROI modification: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
 
     def handle_roi_deleted(self, roi_id):
         """Handle ROI deletion."""
-        self.logger.info(f"ROI deleted: {roi_id}")
+        self.logger.debug(f"Handling ROI deletion for: {roi_id}")
 
-        # Remove from ROIs dictionary
+        try:
+            # Remove from stored ROIs
+            if roi_id in self.rois:
+                del self.rois[roi_id]
+                self.logger.debug(f"Removed ROI {roi_id} from stored ROIs")
+
+            # Remove from ROI list in toolbar
+            self.roi_toolbar.remove_roi(roi_id)
+            self.logger.debug(f"Removed ROI {roi_id} from toolbar list")
+
+            # Update status bar
+            self.statusBar.showMessage(f"ROI deleted: {roi_id}", 3000)
+
+        except Exception as e:
+            self.logger.error(f"Error handling ROI deletion: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+
+    def select_roi(self, roi_id):
+        """Handle ROI selection."""
+        self.logger.debug(f"Selecting ROI: {roi_id}")
+        if roi_id in self.rois:
+            # Highlight the ROI in the view
+            self.image_view.select_roi(roi_id)
+            self.statusBar.showMessage(f"Selected ROI: {roi_id}", 3000)
+
+    def delete_roi(self, roi_id):
+        """Delete a specific ROI."""
+        self.logger.debug(f"Deleting ROI: {roi_id}")
+        # First remove from image view
+        self.image_view.remove_roi(roi_id)
+        # Then remove from our records
         if roi_id in self.rois:
             del self.rois[roi_id]
-
-        # Update status bar
-        self.statusBar.showMessage(f"ROI deleted: {roi_id}", 3000)
+        # Remove from toolbar list
+        self.roi_toolbar.remove_roi(roi_id)
+        # Update status
+        self.statusBar.showMessage(f"Deleted ROI: {roi_id}", 3000)
 
     def clear_rois(self):
         """Clear all ROIs."""
-        self.logger.info("Clearing all ROIs")
-
-        # Clear ROIs dictionary
-        self.rois.clear()
-
-        # Update image view
+        self.logger.debug("Clearing all ROIs")
+        # Clear ROIs from image view
         self.image_view.clear_rois()
+        # Clear our records
+        self.rois.clear()
+        # Clear toolbar list
+        self.roi_toolbar.clear_rois()
+        # Update status
+        self.statusBar.showMessage("Cleared all ROIs", 3000)
 
-        # Update status bar
-        self.statusBar.showMessage("All ROIs cleared", 3000)
+    def analyze_roi(self, roi_id):
+        """Analyze the selected ROI."""
+        self.logger.debug(f"Analyzing ROI: {roi_id}")
+        if roi_id not in self.rois:
+            self.logger.warning(f"ROI {roi_id} not found for analysis")
+            return
+
+        roi_data = self.rois[roi_id]
+        try:
+            # Get current frame data
+            if not self.fluorescence_stack:
+                raise ValueError("No fluorescence data loaded")
+
+            frame = self.fluorescence_stack.get_frame(self.current_frame)
+            if frame is None:
+                raise ValueError("Could not get current frame")
+
+            # Get ROI mask based on type and points
+            mask = np.zeros(frame.shape, dtype=bool)
+            if roi_data['type'] == 'rectangle':
+                y1, x1, y2, x2 = roi_data['points']
+                mask[y1:y2, x1:x2] = True
+            elif roi_data['type'] == 'ellipse':
+                cy, cx, ry, rx = roi_data['points']
+                y, x = np.ogrid[:frame.shape[0], :frame.shape[1]]
+                mask[((x - cx)/rx)**2 + ((y - cy)/ry)**2 <= 1] = True
+            elif roi_data['type'] == 'polygon':
+                points = np.array(roi_data['points'], dtype=np.int32)
+                cv2.fillPoly(mask, [points], 1)
+
+            # Calculate statistics
+            stats = {
+                'roi_id': roi_id,
+                'frame': self.current_frame + 1,  # 1-based frame number for display
+                'mean': float(np.mean(frame[mask])),
+                'std': float(np.std(frame[mask])),
+                'min': float(np.min(frame[mask])),
+                'max': float(np.max(frame[mask])),
+                'sum': float(np.sum(frame[mask])),
+                'area': int(np.sum(mask))
+            }
+
+            # Show results dialog
+            self.show_roi_analysis(stats)
+
+        except Exception as e:
+            self.logger.error(f"Error analyzing ROI: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            QMessageBox.critical(self, "Error", f"Failed to analyze ROI: {str(e)}")
+
+    def show_roi_analysis(self, stats):
+        """Show ROI analysis results."""
+        title = "ROI Analysis Results"
+        subtitle = f"ROI: {stats['roi_id']}, Frame: {stats['frame']}"
+        dialog = ResultsDialog(title, subtitle, stats, self)
+        dialog.exec()
 
     # Image processing
     def apply_filter(self, filter_type):

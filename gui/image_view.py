@@ -547,23 +547,41 @@ class EnhancedImageView(QWidget):
 
         return None
 
+    def remove_roi(self, roi_id):
+        """Remove a specific ROI."""
+        self.logger.debug(f"Removing ROI: {roi_id}")
+        if roi_id in self.rois:
+            # Remove ROI object from view
+            self.view.getView().removeItem(self.rois[roi_id]['roi_object'])
+            # Remove label
+            if 'label' in self.rois[roi_id]:
+                self.view.getView().removeItem(self.rois[roi_id]['label'])
+            # Remove from our dictionary
+            del self.rois[roi_id]
+            self.roi_deleted.emit(roi_id)
+
     def clear_rois(self):
         """Clear all ROIs."""
         self.logger.debug("Clearing all ROIs")
+        # Make a copy of the keys since we'll be modifying the dictionary
+        roi_ids = list(self.rois.keys())
+        for roi_id in roi_ids:
+            self.remove_roi(roi_id)
 
-        for roi_id, roi_info in self.rois.items():
-            # Remove ROI and label from view
-            self.view.getView().removeItem(roi_info['roi_object'])
-            self.view.getView().removeItem(roi_info['label'])
-
-            # Emit signal
-            self.roi_deleted.emit(roi_id)
-
-        # Clear ROIs dictionary
-        self.rois.clear()
-
-        # Reset ID counter
+        # Reset ROI counter
         self.next_roi_id = 1
+
+    def select_roi(self, roi_id):
+        """Select and highlight an ROI."""
+        self.logger.debug(f"Selecting ROI: {roi_id}")
+        # Reset all ROIs to normal state
+        for roi_info in self.rois.values():
+            roi_info['roi_object'].setPen(pg.mkPen('g'))  # Normal state: green
+
+        # Highlight selected ROI
+        if roi_id in self.rois:
+            # Highlight in yellow
+            self.rois[roi_id]['roi_object'].setPen(pg.mkPen('y', width=2))
 
     def zoom_in(self):
         """Zoom in the view."""
