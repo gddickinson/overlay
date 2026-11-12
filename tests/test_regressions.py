@@ -50,6 +50,8 @@ def test_colormap_lut_on_current_matplotlib():
 # --- desktop GUI --------------------------------------------------------------------------------------------------
 @pytest.fixture
 def window(tmp_path, monkeypatch):
+    pytest.importorskip("PyQt6.QtWidgets")
+    pytest.importorskip("pyqtgraph")
     monkeypatch.setenv("HOME", str(tmp_path))  # the app writes logs and config under ~/.tiff_stack_viewer
     from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
     app = QApplication.instance() or QApplication([])

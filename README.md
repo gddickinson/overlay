@@ -37,6 +37,8 @@ overlay/
 ├── core/
 │   ├── image_loader.py         # TIFF loading and ImageStack management
 │   ├── image_processor.py      # Image processing algorithms
+│   ├── processing_defaults.py  # Default parameters of every processing operation
+│   ├── overlay_blend.py        # Mask-over-fluorescence compositing (Qt-free)
 │   ├── data_analyzer.py        # Statistics, PCA, clustering analysis
 │   └── export_manager.py       # Export to images, video, and data files
 ├── gui/
@@ -53,10 +55,11 @@ overlay/
 ├── utils/
 │   ├── config.py               # Application configuration (load/save)
 │   ├── logger.py               # Logging setup
-│   ├── helpers.py              # Utility functions
-│   └── tiff_stack_viewer.py    # Standalone viewer utility
-├── standalone/                 # Standalone tool scripts
-└── example_data/               # Sample TIFF stacks for testing
+│   └── helpers.py              # Utility functions
+├── standalone/
+│   └── tiff_stack_viewer.py    # Minimal standalone viewer (fluorescence + mask)
+├── web/                        # Web interface (see "Web interface" below)
+└── example_data/               # Your own sample stacks (git-ignored, not in the repository)
 ```
 
 ## Requirements
@@ -105,6 +108,50 @@ python main.py -f fluorescence_stack.tif -m mask_stack.tif
 5. Draw ROIs to extract region-specific intensity traces
 6. Use **Analysis** dialogs for statistics, PCA, or clustering
 7. Export results via the **Export** menu
+
+## Web interface
+
+A browser companion to the desktop app: open TIFF stacks, overlay channels and a mask with LUTs and contrast, and run
+the repository's processing and analysis operations. Pages: **Viewer** (load files or the demo, per-channel LUT and
+min/max with 1-99 % auto levels, mask colour and opacity, frame playback, Z-projections, pixel read-out in px and µm,
+rectangle/circle ROIs, histogram, PNG export), **Process** (filters, contrast, Otsu masks, and in the local app also
+Frangi, CLAHE, local threshold, blob/corner detection and registration; results become new channels or the mask),
+**Analyze** (time series in the mask or an ROI with linear trend and peaks, per-frame statistics, region
+measurements, CSV export) and **About**.
+
+### Run the web app
+
+```bash
+pip install -r requirements-web.txt
+python run_web.py            # http://127.0.0.1:8128 (local only)
+```
+
+### How it works
+
+- `web/static/tiff_reader.js` is a pure-JavaScript TIFF reader (classic and BigTIFF, 8-64-bit integer/float, strips or
+  tiles, uncompressed/LZW/Deflate/PackBits with predictors, chunky or planar samples; ImageJ, OME and tifffile
+  layouts and pixel sizes). `tiff_reader.test.mjs` checks it against tifffile on the files written by
+  `scripts/make_tiff_fixtures.py`.
+- `filters.js`, `ops.js` and `stats.js` port `ImageStack`, `ImageProcessor` and `DataAnalyzer` functions;
+  `ops.test.mjs` checks them against the Python code (`scripts/make_ops_fixture.py` writes the reference values).
+  They run in a Web Worker. Python-only operations go to `POST /api/process` and `/api/register` (`web/compute.py`).
+- Display: channels are added through their LUTs; the mask uses the desktop formula from `core/overlay_blend.py`.
+- Demo data (`web/static/demo/`) are synthetic, drawn by `scripts/make_demo_data.py`; the mask is made by
+  `ImageProcessor` (Gaussian, then Otsu). The 0.2 µm pixel size in them is made up.
+
+### Static site (GitHub Pages)
+
+`python scripts/build_static.py --out site` exports the front end and the catalogue JSON; `.github/workflows/pages.yml`
+publishes it on every push to main (Settings → Pages → Source: GitHub Actions). On the static site everything except
+the Python-only operations works, in the browser.
+
+Tests: `python -m pytest -q tests` (web API, static build, Python/JS agreement through node, fixtures current,
+regression tests); smoke test and screenshots: `python scripts/screenshots.py --static "" viewer process analyze about`.
+
+![Home](docs/img/home.png)
+![Viewer](docs/img/viewer.png)
+![Process](docs/img/process.png)
+![Analyze](docs/img/analyze.png)
 
 ## Debugging
 

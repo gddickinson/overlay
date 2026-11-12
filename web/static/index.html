@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TIFF Stack Viewer</title>
+<meta name="description" content="Open microscopy TIFF stacks in the browser, overlay channels and masks with LUTs and contrast, and run the repository's processing and analysis operations.">
+<link rel="icon" href="static/icon.svg">
+<link rel="stylesheet" href="static/style.css">
+<link rel="stylesheet" href="static/style_app.css">
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<header class="top">
+  <a class="brand" href="#/"><span class="mark"></span>Overlay</a>
+  <nav class="groups">
+    <a href="#/viewer" data-nav="viewer">Viewer</a>
+    <a href="#/process" data-nav="process">Process</a>
+    <a href="#/analyze" data-nav="analyze">Analyze</a>
+    <a href="#/about" data-nav="about">About</a>
+  </nav>
+  <div class="right"><a class="small mute" href="https://github.com/gddickinson/overlay" target="_blank" rel="noopener">GitHub</a></div>
+</header>
+<main id="app" tabindex="-1"></main>
+<footer class="foot">TIFF Stack Viewer (overlay) · <a href="https://github.com/gddickinson/overlay">source on GitHub</a> · <span id="mode"></span></footer>
+<script type="module" src="static/main.js"></script>
+</body>
+</html>
