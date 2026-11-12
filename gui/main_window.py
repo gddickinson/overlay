@@ -1285,8 +1285,12 @@ class MainWindow(QMainWindow):
                 kwargs = {'size': max(1, int(round(parameter)))}
         filtered = self.image_processor.apply_filter(frame, filter_type, **kwargs)
 
-        # Update frame in stack
-        self.fluorescence_stack.data[self.current_frame] = filtered
+        # Update frame in stack. Edge filters (Sobel, Laplacian) give floats (0-1 or signed): keep them as floats
+        # instead of truncating them into an integer stack, where they became ~0.
+        stack = self.fluorescence_stack
+        if np.asarray(filtered).dtype.kind == 'f' and stack.data.dtype.kind != 'f':
+            stack.data = stack.data.astype(np.float32)
+        stack.data[self.current_frame] = filtered
 
         # Update display
         self.update_display()

@@ -127,3 +127,66 @@ def test_colormap_applies_without_mask(window):
     window.display_settings["colormap"] = "viridis"
     window.update_display()
     assert window.image_view.view.getImageItem().lut is not None
+
+
+# --- second round (2026-11-12) -------------------------------------------------------------------------------------
+DEMO = ROOT / "web" / "static" / "demo"
+
+
+def test_sobel_result_is_kept_as_float(window):
+    """MainWindow.apply_filter wrote Sobel's 0-1 float result back into the uint16 stack, so the frame became ~0."""
+    raw = window.fluorescence_stack.data[0].copy()
+    window.apply_filter("sobel")
+    out = window.fluorescence_stack.data[0]
+    expected = ImageProcessor().apply_filter(raw, "sobel")
+    assert out.dtype.kind == "f" and out.max() > 0
+    assert np.allclose(out, expected, rtol=1e-6, atol=1e-9)
+    assert np.array_equal(window.fluorescence_stack.data[1], _blobs())  # other frames keep their values
+
+
+def test_blob_detection_normalises_intensities():
+    """detect_features('blob') thresholded raw intensities (0.1 counts), giving hundreds of blobs on 16-bit data."""
+    import tifffile
+    frame = tifffile.imread(DEMO / "demo_puncta.tif")[0]
+    blobs = ImageProcessor().detect_features(frame, method="blob", min_sigma=1, max_sigma=10, threshold=0.1)
+    assert 5 <= len(blobs) <= 60, len(blobs)  # the demo has 24 spots, some dim in any one frame
+    scaled = ImageProcessor().detect_features(frame.astype(float) * 40, method="blob", min_sigma=1, max_sigma=10,
+                                              threshold=0.1)
+    assert len(scaled) == len(blobs)  # independent of the camera's intensity scale
+
+
+def test_load_config_does_not_mutate_defaults(tmp_path, monkeypatch):
+    """load_config shallow-copied DEFAULT_CONFIG, so a saved config file changed the built-in defaults."""
+    import json
+    from utils import config
+    before = json.dumps(config.DEFAULT_CONFIG, sort_keys=True)
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"display": {"default_overlay_alpha": 0.9, "colormap": "hot"}}))
+    loaded = config.load_config(str(path))
+    assert loaded["display"]["colormap"] == "hot"
+    loaded["navigation"]["frame_rate"] = 99
+    assert json.dumps(config.DEFAULT_CONFIG, sort_keys=True) == before
+    assert config.reset_to_defaults(str(tmp_path / "r.json")) is not config.DEFAULT_CONFIG
+
+
+def test_tcyx_file_loads_as_frames_and_channels(tmp_path):
+    """A (T, C, Y, X) TIFF was read as (T, H=C, W=Y, channels=X); now frames x H x W with selectable channels."""
+    import tifffile
+    from core.image_loader import ImageStack
+    rng = np.random.default_rng(0)
+    arr = rng.integers(0, 4000, size=(4, 2, 20, 24), dtype=np.uint16)
+    for name, kw in (("ij.tif", {"imagej": True, "metadata": {"axes": "TCYX"}}),
+                     ("ome.ome.tif", {"ome": True, "metadata": {"axes": "TCYX"}})):
+        tifffile.imwrite(tmp_path / name, arr, **kw)
+        st = ImageStack()
+        assert st.load_tiff(str(tmp_path / name))
+        assert st.data.shape == (4, 20, 24) and st.n_channels == 2
+        assert st.dimensions == {"frames": 4, "height": 20, "width": 24, "channels": 1}
+        assert np.array_equal(st.data, arr[:, 0])
+        st.set_channel(1)
+        assert np.array_equal(st.data, arr[:, 1])
+    hyper = rng.integers(0, 4000, size=(3, 4, 2, 10, 12), dtype=np.uint16)  # T, Z, C: frames = T x Z, z fastest
+    tifffile.imwrite(tmp_path / "tzc.tif", hyper, imagej=True, metadata={"axes": "TZCYX"})
+    st = ImageStack()
+    assert st.load_tiff(str(tmp_path / "tzc.tif"))
+    assert np.array_equal(st.data, hyper[:, :, 0].reshape(12, 10, 12))
