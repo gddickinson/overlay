@@ -8,6 +8,8 @@ from scipy import ndimage
 from skimage import filters, exposure, registration, segmentation, morphology, feature
 import cv2
 
+from core.processing_defaults import DEFAULTS
+
 
 class ImageProcessor:
     """Class for processing image stacks."""
@@ -22,17 +24,17 @@ class ImageProcessor:
         
         try:
             if filter_type == 'gaussian':
-                sigma = kwargs.get('sigma', 1.0)
+                sigma = kwargs.get('sigma', DEFAULTS['filter']['gaussian']['sigma'])
                 return filters.gaussian(image, sigma=sigma, preserve_range=True).astype(image.dtype)
             
             elif filter_type == 'median':
-                size = kwargs.get('size', 3)
+                size = kwargs.get('size', DEFAULTS['filter']['median']['size'])
                 # skimage >= 0.19 names the neighbourhood `footprint` (`selem` was removed in 0.20)
                 return filters.median(image, footprint=morphology.disk(size)).astype(image.dtype)
             
             elif filter_type == 'bilateral':
-                sigma_color = kwargs.get('sigma_color', 0.1)
-                sigma_spatial = kwargs.get('sigma_spatial', 1)
+                sigma_color = kwargs.get('sigma_color', DEFAULTS['filter']['bilateral']['sigma_color'])
+                sigma_spatial = kwargs.get('sigma_spatial', DEFAULTS['filter']['bilateral']['sigma_spatial'])
                 return filters.gaussian(image, sigma=sigma_spatial, preserve_range=True).astype(image.dtype)
             
             elif filter_type == 'sobel':
@@ -42,8 +44,8 @@ class ImageProcessor:
                 return filters.laplace(image)
             
             elif filter_type == 'frangi':
-                scale_range = kwargs.get('scale_range', (1, 10))
-                scale_step = kwargs.get('scale_step', 2)
+                scale_range = kwargs.get('scale_range', DEFAULTS['filter']['frangi']['scale_range'])
+                scale_step = kwargs.get('scale_step', DEFAULTS['filter']['frangi']['scale_step'])
                 return filters.frangi(image, scale_range=scale_range, scale_step=scale_step)
             
             else:
@@ -60,8 +62,8 @@ class ImageProcessor:
         
         try:
             if method == 'rescale':
-                p_low = kwargs.get('p_low', 2)
-                p_high = kwargs.get('p_high', 98)
+                p_low = kwargs.get('p_low', DEFAULTS['contrast']['rescale']['p_low'])
+                p_high = kwargs.get('p_high', DEFAULTS['contrast']['rescale']['p_high'])
                 
                 # Calculate percentiles
                 low = np.percentile(image, p_low)
@@ -76,8 +78,8 @@ class ImageProcessor:
                 return exposure.equalize_hist(image)
             
             elif method == 'adaptive':
-                kernel_size = kwargs.get('kernel_size', 64)
-                clip_limit = kwargs.get('clip_limit', 0.01)
+                kernel_size = kwargs.get('kernel_size', DEFAULTS['contrast']['adaptive']['kernel_size'])
+                clip_limit = kwargs.get('clip_limit', DEFAULTS['contrast']['adaptive']['clip_limit'])
                 return exposure.equalize_adapthist(
                     image, kernel_size=kernel_size, clip_limit=clip_limit
                 )
@@ -97,8 +99,9 @@ class ImageProcessor:
         try:
             if method == 'phase':
                 # Phase correlation
+                upsample = kwargs.get('upsample_factor', DEFAULTS['registration']['phase']['upsample_factor'])
                 shift, error, diffphase = registration.phase_cross_correlation(
-                    fixed_image, moving_image, upsample_factor=kwargs.get('upsample_factor', 10)
+                    fixed_image, moving_image, upsample_factor=upsample
                 )
                 
                 # Apply transformation
@@ -126,10 +129,8 @@ class ImageProcessor:
                 bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
                 matches = bf.match(des1, des2)
                 
-                # Sort matches by distance
+                # Sort matches by distance and take the top ones
                 matches = sorted(matches, key=lambda x: x.distance)
-                
-                # Take top matches
                 good_matches = matches[:min(50, len(matches))]
                 
                 # Extract locations of matched keypoints
@@ -163,7 +164,7 @@ class ImageProcessor:
         
         try:
             if method == 'threshold':
-                threshold = kwargs.get('threshold', None)
+                threshold = kwargs.get('threshold', DEFAULTS['segment']['threshold']['threshold'])
                 if threshold is None:
                     # Automatic threshold
                     threshold = filters.threshold_otsu(image)
@@ -171,8 +172,8 @@ class ImageProcessor:
                 return image > threshold
             
             elif method == 'adaptive':
-                block_size = kwargs.get('block_size', 35)
-                offset = kwargs.get('offset', 0)
+                block_size = kwargs.get('block_size', DEFAULTS['segment']['adaptive']['block_size'])
+                offset = kwargs.get('offset', DEFAULTS['segment']['adaptive']['offset'])
                 
                 # threshold_local returns the per-pixel threshold map; the segmentation is the image above it
                 return image > filters.threshold_local(
@@ -184,8 +185,8 @@ class ImageProcessor:
                 gradient = filters.sobel(image)
                 
                 # Marker creation
-                low = kwargs.get('low_marker', 30)
-                high = kwargs.get('high_marker', 150)
+                low = kwargs.get('low_marker', DEFAULTS['segment']['watershed']['low_marker'])
+                high = kwargs.get('high_marker', DEFAULTS['segment']['watershed']['high_marker'])
                 
                 markers = np.zeros_like(image, dtype=int)
                 markers[image < low] = 1
@@ -210,10 +211,10 @@ class ImageProcessor:
         try:
             if method == 'blob':
                 # Blob detection
-                min_sigma = kwargs.get('min_sigma', 1)
-                max_sigma = kwargs.get('max_sigma', 10)
-                num_sigma = kwargs.get('num_sigma', 5)
-                threshold = kwargs.get('threshold', 0.1)
+                min_sigma = kwargs.get('min_sigma', DEFAULTS['features']['blob']['min_sigma'])
+                max_sigma = kwargs.get('max_sigma', DEFAULTS['features']['blob']['max_sigma'])
+                num_sigma = kwargs.get('num_sigma', DEFAULTS['features']['blob']['num_sigma'])
+                threshold = kwargs.get('threshold', DEFAULTS['features']['blob']['threshold'])
                 
                 blobs = feature.blob_log(
                     image, 
@@ -227,8 +228,8 @@ class ImageProcessor:
             
             elif method == 'corner':
                 # Corner detection
-                min_distance = kwargs.get('min_distance', 5)
-                threshold = kwargs.get('threshold', 0.1)
+                min_distance = kwargs.get('min_distance', DEFAULTS['features']['corner']['min_distance'])
+                threshold = kwargs.get('threshold', DEFAULTS['features']['corner']['threshold'])
                 
                 corners = feature.corner_peaks(
                     feature.corner_harris(image),
