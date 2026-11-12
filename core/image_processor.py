@@ -27,7 +27,8 @@ class ImageProcessor:
             
             elif filter_type == 'median':
                 size = kwargs.get('size', 3)
-                return filters.median(image, selem=morphology.disk(size), preserve_range=True).astype(image.dtype)
+                # skimage >= 0.19 names the neighbourhood `footprint` (`selem` was removed in 0.20)
+                return filters.median(image, footprint=morphology.disk(size)).astype(image.dtype)
             
             elif filter_type == 'bilateral':
                 sigma_color = kwargs.get('sigma_color', 0.1)
@@ -173,7 +174,8 @@ class ImageProcessor:
                 block_size = kwargs.get('block_size', 35)
                 offset = kwargs.get('offset', 0)
                 
-                return filters.threshold_local(
+                # threshold_local returns the per-pixel threshold map; the segmentation is the image above it
+                return image > filters.threshold_local(
                     image, block_size=block_size, offset=offset
                 )
             

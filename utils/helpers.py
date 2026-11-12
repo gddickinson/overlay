@@ -83,9 +83,9 @@ def memory_usage_info():
 
 def convert_colormap_to_lut(colormap_name):
     """Convert a matplotlib colormap name to a PyQtGraph lookup table."""
-    import matplotlib.cm as cm
-    
-    cmap = cm.get_cmap(colormap_name)
+    import matplotlib
+
+    cmap = matplotlib.colormaps[colormap_name]  # cm.get_cmap was removed in matplotlib 3.9
     lut = np.zeros((256, 3), dtype=np.uint8)
     
     for i in range(256):

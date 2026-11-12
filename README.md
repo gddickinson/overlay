@@ -66,10 +66,10 @@ overlay/
 - pyqtgraph >= 0.12
 - NumPy >= 1.20
 - tifffile >= 2021.8
-- scikit-image >= 0.18
+- scikit-image >= 0.19
 - SciPy >= 1.7
 - pandas >= 1.3
-- matplotlib >= 3.4
+- matplotlib >= 3.5
 - h5py >= 3.6
 - OpenCV (cv2)
 - scikit-learn
