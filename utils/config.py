@@ -2,6 +2,7 @@
 Configuration management for the application.
 """
 
+import copy
 import os
 import json
 from pathlib import Path
@@ -86,8 +87,8 @@ def load_config(custom_path=None):
     logger = logging.getLogger('tiff_stack_viewer')
     config_path = get_config_path(custom_path)
     
-    # Start with default configuration
-    config = DEFAULT_CONFIG.copy()
+    # Start with a deep copy of the defaults (a shallow copy let loaded values change DEFAULT_CONFIG itself)
+    config = copy.deepcopy(DEFAULT_CONFIG)
     
     # Try to load from file
     if config_path.exists():
@@ -141,10 +142,10 @@ def reset_to_defaults(custom_path=None):
         with open(config_path, 'w') as f:
             json.dump(DEFAULT_CONFIG, f, indent=4)
         logger.info("Configuration reset to defaults")
-        return DEFAULT_CONFIG.copy()
+        return copy.deepcopy(DEFAULT_CONFIG)
     except Exception as e:
         logger.error(f"Error resetting configuration: {e}")
-        return DEFAULT_CONFIG.copy()
+        return copy.deepcopy(DEFAULT_CONFIG)
 
 
 import sys  # Add this import at the top
