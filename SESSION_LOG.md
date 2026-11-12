@@ -15,10 +15,14 @@
   and analysis code tested against Python (`ops.test.mjs`). Synthetic demo stacks from `scripts/make_demo_data.py`
   (no example data is committed in the repository).
 - Desktop checked offscreen with the demo stacks (loads, overlay, colormap).
-- Open points for George: `apply_filter('sobel'/'laplacian')` returns floats in 0-1 (or signed), which
-  MainWindow.apply_filter writes back into the integer stack, so the frame becomes ~0 (needs a decision: rescale,
-  or keep results in a separate float stack); the "bilateral" filter is a Gaussian of sigma_spatial;
-  `detect_features` passes raw intensities to `blob_log` with threshold 0.1, so 16-bit frames give hundreds of blobs;
-  `utils/config.py` `load_config` copies DEFAULT_CONFIG shallowly, so a loaded config mutates the defaults;
-  the desktop treats multi-channel (T, C, Y, X) TIFFs as (T, H, W, C) wrongly. `gui/main_window.py` (1331 lines),
+- Open points: the "bilateral" filter is a Gaussian of sigma_spatial. `gui/main_window.py` (1350 lines),
   `gui/dialogs.py` (1609), `gui/image_view.py`, `core/data_analyzer.py`, `core/export_manager.py` exceed 500 lines.
+
+## 2026-11-12: second round of fixes (George: "fix any other problems")
+- Sobel/Laplacian from the desktop: float results kept (the stack becomes float32) instead of truncated to ~0.
+- Blob detection: frame scaled to 0-1 between its 1st and 99.8th percentiles before blob_log
+  (DEFAULTS['features']['blob']['norm_percentiles']); demo puncta frame 10 blobs instead of 695. Earlier blob
+  counts change.
+- load_config / reset_to_defaults return deep copies (a loaded config no longer changes DEFAULT_CONFIG).
+- ImageStack reads ImageJ/OME hyperstacks by their axes (core/tiff_axes.py): frames = T x Z, channels selectable
+  (Image > Next Channel); same layout as the browser reader (test in tests/test_web.py).
