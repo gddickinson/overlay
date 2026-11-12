@@ -280,6 +280,11 @@ class MainWindow(QMainWindow):
 
         image_menu.addMenu(filter_menu)
 
+        # Multi-channel files (ImageJ / OME hyperstacks): cycle the fluorescence channel shown
+        channel_action = QAction("Next &Channel", self)
+        channel_action.triggered.connect(self.next_channel)
+        image_menu.addAction(channel_action)
+
         # Projection action
         projection_action = QAction("Create &Z-Projection...", self)
         projection_action.triggered.connect(self.show_projection_dialog)
@@ -495,7 +500,10 @@ class MainWindow(QMainWindow):
             # Emit signal
             self.fluorescence_loaded.emit(self.fluorescence_stack)
 
-            self.statusBar.showMessage(f"Loaded fluorescence stack with {self.fluorescence_stack.max_frames} frames", 5000)
+            n_ch = self.fluorescence_stack.n_channels
+            extra = f", channel 1 of {n_ch} (Image > Next Channel)" if n_ch > 1 else ""
+            self.statusBar.showMessage(
+                f"Loaded fluorescence stack with {self.fluorescence_stack.max_frames} frames{extra}", 5000)
         else:
             self.statusBar.showMessage("Failed to load fluorescence stack", 5000)
             QMessageBox.critical(self, "Error", f"Failed to load fluorescence stack from {file_path}")
@@ -1258,6 +1266,16 @@ class MainWindow(QMainWindow):
         subtitle = f"ROI: {stats['roi_id']}, Frame: {stats['frame']}"
         dialog = ResultsDialog(title, subtitle, stats, self)
         dialog.exec()
+
+    def next_channel(self):
+        """Show the next channel of a multi-channel fluorescence file."""
+        stack = self.fluorescence_stack
+        if not stack or stack.n_channels < 2:
+            self.statusBar.showMessage("The fluorescence file has one channel", 5000)
+            return
+        stack.set_channel((stack.channel + 1) % stack.n_channels)
+        self.update_display()
+        self.statusBar.showMessage(f"Channel {stack.channel + 1} of {stack.n_channels}", 5000)
 
     # Image processing
     def apply_filter(self, filter_type, parameter=None):

@@ -175,3 +175,18 @@ def test_ops_fixture_is_current():
         else:
             assert a == b, path
     cmp(json.loads(json.dumps(new)), old, "ops")
+
+
+def test_desktop_loader_matches_browser_layout():
+    """ImageStack (desktop) arranges hyperstacks like tiff_reader.js: frames = T x Z (z fastest), channels apart."""
+    from core.image_loader import ImageStack
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import make_tiff_fixtures as mk
+    for name in ("imagej_hyper.tif", "ome.ome.tif"):
+        canon = mk.canonical(FIX / "tiff" / name)[0]  # (T, Z, C, Y, X), the order the JS test checks
+        T, Z, C, H, W = canon.shape
+        st = ImageStack()
+        assert st.load_tiff(str(FIX / "tiff" / name)) and st.n_channels == C
+        for c in range(C):
+            st.set_channel(c)
+            assert np.array_equal(st.data, canon[:, :, c].reshape(T * Z, H, W)), (name, c)

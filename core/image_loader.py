@@ -6,10 +6,12 @@ import os
 import logging
 from pathlib import Path
 import numpy as np
-from tifffile import imread, imwrite
+from tifffile import TiffFile, imread, imwrite
 import h5py
 from scipy.ndimage import zoom
 from skimage import io, transform, exposure
+
+from core.tiff_axes import arrange, needs_arranging
 
 
 class ImageStack:
@@ -24,15 +26,32 @@ class ImageStack:
         self.dimensions = None
         self.current_frame = 0
         self.max_frames = 0
+        self.all_channels = None  # (frames, C, H, W) when the file has a channel axis
+        self.n_channels = 1
+        self.channel = 0
 
     def load_tiff(self, file_path):
         """Load a TIFF stack from file."""
         self.logger.info(f"Loading TIFF stack from {file_path}")
 
         try:
-            # Load the TIFF file
-            self.data = imread(file_path)
+            # Load the TIFF file. Files with C or Z axes (ImageJ hyperstacks, OME-TIFF) are arranged by their axes
+            # into frames x channels; self.data holds the selected channel as (frames, H, W).
+            with TiffFile(file_path) as tif:
+                series = tif.series[0]
+                axes = series.axes
+                data = series.asarray()
             self.file_path = file_path
+            self.all_channels, self.n_channels, self.channel = None, 1, 0
+            if needs_arranging(axes):
+                arranged = arrange(data, axes)
+                self.n_channels = arranged.shape[1]
+                if self.n_channels > 1:
+                    self.all_channels = arranged
+                self.data = arranged[:, 0]
+                self.logger.info(f"TIFF axes {axes}: {arranged.shape[0]} frames x {self.n_channels} channel(s)")
+            else:
+                self.data = imread(file_path)
 
             # Reshape if it's a single frame
             if len(self.data.shape) == 2:
@@ -49,6 +68,15 @@ class ImageStack:
         except Exception as e:
             self.logger.error(f"Error loading TIFF stack: {e}")
             return False
+
+    def set_channel(self, channel):
+        """Show channel `channel` of a multi-channel file (replaces self.data with that channel's frames)."""
+        if self.all_channels is None or not 0 <= channel < self.n_channels:
+            return False
+        self.channel = channel
+        self.data = self.all_channels[:, channel]
+        self._update_dimensions()
+        return True
 
     def _update_dimensions(self):
         """Update dimension information based on loaded data."""
