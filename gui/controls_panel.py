@@ -388,10 +388,10 @@ class ControlsPanel(QWidget):
         analysis_type = self.roi_analysis_combo.currentText().lower()
         roi_source = self.roi_source_combo.currentText().lower()
 
-        # Convert roi source to code
-        if roi_source == "Current ROIs":
+        # Convert roi source to code (roi_source is lower-cased above)
+        if roi_source == "current rois":
             roi_type = "current"
-        elif roi_source == "Mask":
+        elif roi_source == "mask":
             roi_type = "mask"
         else:
             roi_type = "whole"

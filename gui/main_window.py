@@ -22,6 +22,7 @@ from core.export_manager import ExportManager
 
 from gui.image_view import EnhancedImageView
 from gui.controls_panel import ControlsPanel
+from gui.dialog_presets import preset_analysis, preset_projection, preset_registration
 from gui.dialogs import (SettingsDialog, ContrastDialog, ProjectionDialog,
                         RegistrationDialog, AnalysisDialog, ExportDialog, ResultsDialog)
 from gui.widgets.histogram_widget import HistogramWidget
@@ -847,13 +848,14 @@ class MainWindow(QMainWindow):
             else:
                 self.statusBar.showMessage("Failed to apply contrast adjustment", 5000)
 
-    def show_projection_dialog(self):
-        """Show Z-projection dialog."""
+    def show_projection_dialog(self, method=None):
+        """Show Z-projection dialog (method pre-selected when given by the controls panel)."""
         if not self.fluorescence_stack:
             QMessageBox.warning(self, "Warning", "No fluorescence data loaded")
             return
 
         dialog = ProjectionDialog(self)
+        preset_projection(dialog, method)
         if dialog.exec():
             # Create projection
             params = dialog.get_projection_params()
@@ -871,13 +873,14 @@ class MainWindow(QMainWindow):
             else:
                 self.statusBar.showMessage("Failed to create projection", 5000)
 
-    def show_registration_dialog(self):
-        """Show registration dialog."""
+    def show_registration_dialog(self, method=None, reference_frame=None):
+        """Show registration dialog (method and reference frame pre-set when given by the controls panel)."""
         if not self.fluorescence_stack and not self.mask_stack:
             QMessageBox.warning(self, "Warning", "No data loaded for registration")
             return
 
         dialog = RegistrationDialog(self)
+        preset_registration(dialog, method, reference_frame)
         if dialog.exec():
             # Apply registration
             params = dialog.get_registration_params()
@@ -956,13 +959,14 @@ class MainWindow(QMainWindow):
             self.logger.error(f"Error in registration: {e}")
             return False
 
-    def show_intensity_analysis_dialog(self):
-        """Show intensity analysis dialog."""
+    def show_intensity_analysis_dialog(self, roi_type=None):
+        """Show intensity analysis dialog (ROI source pre-selected when given by the controls panel)."""
         if not self.fluorescence_stack:
             QMessageBox.warning(self, "Warning", "No fluorescence data loaded")
             return
 
         dialog = AnalysisDialog(self, analysis_type='intensity')
+        preset_analysis(dialog, roi_type)
         if dialog.exec():
             # Perform intensity analysis
             params = dialog.get_analysis_params()
@@ -1001,13 +1005,14 @@ class MainWindow(QMainWindow):
             }
             self.analysis_completed.emit(analysis_data)
 
-    def show_time_series_dialog(self):
-        """Show time series analysis dialog."""
+    def show_time_series_dialog(self, roi_type=None):
+        """Show time series analysis dialog (ROI source pre-selected when given by the controls panel)."""
         if not self.fluorescence_stack:
             QMessageBox.warning(self, "Warning", "No fluorescence data loaded")
             return
 
         dialog = AnalysisDialog(self, analysis_type='time_series')
+        preset_analysis(dialog, roi_type)
         if dialog.exec():
             # Perform time series analysis
             params = dialog.get_analysis_params()
@@ -1041,13 +1046,14 @@ class MainWindow(QMainWindow):
             }
             self.analysis_completed.emit(analysis_data)
 
-    def show_feature_detection_dialog(self):
-        """Show feature detection dialog."""
+    def show_feature_detection_dialog(self, method=None, threshold=None, min_size=None, max_size=None):
+        """Show feature detection dialog (pre-filled with the controls panel's values when given)."""
         if not self.fluorescence_stack:
             QMessageBox.warning(self, "Warning", "No fluorescence data loaded")
             return
 
         dialog = AnalysisDialog(self, analysis_type='feature')
+        preset_analysis(dialog, method=method, threshold=threshold, min_size=min_size, max_size=max_size)
         if dialog.exec():
             # Perform feature detection
             params = dialog.get_analysis_params()
@@ -1254,8 +1260,12 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     # Image processing
-    def apply_filter(self, filter_type):
-        """Apply filter to current fluorescence frame."""
+    def apply_filter(self, filter_type, parameter=None):
+        """Apply filter to current fluorescence frame.
+
+        parameter (from the controls panel) is the Gaussian/bilateral sigma or the median radius in pixels; the menu
+        actions pass none and get the ImageProcessor defaults.
+        """
         if not self.fluorescence_stack:
             QMessageBox.warning(self, "Warning", "No fluorescence data loaded")
             return
@@ -1267,7 +1277,13 @@ class MainWindow(QMainWindow):
         frame = self.fluorescence_stack.get_frame(self.current_frame)
 
         # Apply filter
-        filtered = self.image_processor.apply_filter(frame, filter_type)
+        kwargs = {}
+        if parameter is not None:
+            if filter_type in ('gaussian', 'bilateral'):
+                kwargs = {'sigma': float(parameter), 'sigma_spatial': float(parameter)}
+            elif filter_type == 'median':
+                kwargs = {'size': max(1, int(round(parameter)))}
+        filtered = self.image_processor.apply_filter(frame, filter_type, **kwargs)
 
         # Update frame in stack
         self.fluorescence_stack.data[self.current_frame] = filtered

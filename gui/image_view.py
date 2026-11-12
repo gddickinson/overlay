@@ -9,6 +9,8 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF
 from PyQt6.QtGui import QAction, QCursor
 import pyqtgraph as pg
 
+from core.overlay_blend import blend_overlay
+
 
 
 class EnhancedImageView(QWidget):
@@ -118,30 +120,18 @@ class EnhancedImageView(QWidget):
                 self.view.clear()
                 return
 
+            blend_mask = (display_settings.get('mask_visible', True) and
+                          self.current_overlay is not None and self.overlay_alpha > 0)
+
             # Start with fluorescence image if visible
             display_image = None
             if display_settings.get('fluorescence_visible', True) and self.current_image is not None:
                 self.logger.debug("Setting fluorescence image")
-                if len(self.current_image.shape) == 2:
-                    display_image = np.stack([self.current_image] * 3, axis=2)
+                if blend_mask:
+                    display_image = blend_overlay(self.current_image, self.current_overlay,
+                                                  self.overlay_alpha, self.overlay_color)
                 else:
-                    display_image = self.current_image.copy()
-
-            # Add mask overlay if visible
-            if (display_settings.get('mask_visible', True) and
-                self.current_overlay is not None and
-                self.overlay_alpha > 0 and
-                display_image is not None):
-                self.logger.debug("Adding mask overlay")
-                binary_mask = self.current_overlay > 0
-
-                for i in range(3):
-                    mask_channel = np.zeros_like(binary_mask, dtype=np.uint8)
-                    mask_channel[binary_mask] = self.overlay_color[i]
-                    display_image[..., i] = (
-                        display_image[..., i] * (1 - self.overlay_alpha * binary_mask) +
-                        mask_channel * self.overlay_alpha
-                    ).astype(np.uint8)
+                    display_image = self.current_image  # 2D frames keep their values (levels, colormap)
 
             # If we don't have an image to display, clear the view
             if display_image is None:
@@ -152,9 +142,11 @@ class EnhancedImageView(QWidget):
             # Update the view
             self.logger.debug(f"Setting final image with shape {display_image.shape}")
             if len(display_image.shape) == 3:
+                # (H, W, 3) is read as RGB; the old (3, H, W) transpose was read as a 3-frame movie
                 self.view.setImage(
-                    display_image.transpose(2, 0, 1),
-                    autoLevels=display_settings.get('auto_contrast', False)
+                    display_image,
+                    autoLevels=display_settings.get('auto_contrast', False),
+                    levels=(0, 255)
                 )
             else:
                 self.view.setImage(
@@ -180,29 +172,9 @@ class EnhancedImageView(QWidget):
         """Create the display image combining fluorescence and overlay."""
         if self.current_image is None:
             return None
-
-        # Start with fluorescence image
-        if len(self.current_image.shape) == 2:
-            display_image = np.stack([self.current_image] * 3, axis=2)
-        else:
-            display_image = self.current_image.copy()
-
-        # Add overlay if available
         if self.current_overlay is not None and self.overlay_alpha > 0:
-            # Apply overlay with color
-            binary_mask = self.current_overlay > 0
-
-            for i in range(3):
-                mask_channel = np.zeros_like(binary_mask, dtype=np.uint8)
-                mask_channel[binary_mask] = self.overlay_color[i]
-
-                # Alpha blend
-                display_image[..., i] = (
-                    display_image[..., i] * (1 - self.overlay_alpha * binary_mask) +
-                    mask_channel * self.overlay_alpha
-                ).astype(np.uint8)
-
-        return display_image
+            return blend_overlay(self.current_image, self.current_overlay, self.overlay_alpha, self.overlay_color)
+        return self.current_image
 
     def _get_display_levels(self, image, settings):
         """Get display levels based on settings."""
