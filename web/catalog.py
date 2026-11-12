@@ -71,7 +71,9 @@ OPERATIONS = [
     {"id": "adaptive_threshold", "group": "segment", "label": "Local (adaptive) threshold -> mask",
      "where": "python", "params": [_p("segment", "adaptive", "block_size", "block size (odd, px)", 3, 201, 2),
                                    _p("segment", "adaptive", "offset", "offset", -1000, 1000, 1)]},
-    {"id": "blob", "group": "features", "label": "Blob detection (Laplacian of Gaussian)", "where": "python",
+    {"id": "blob", "group": "features", "where": "python",
+     "label": "Blob detection (Laplacian of Gaussian; frame scaled 0-1 between its {} and {} percentiles)".format(
+         *DEFAULTS["features"]["blob"]["norm_percentiles"]),
      "frame_only": True,
      "params": [_p("features", "blob", "min_sigma", "min sigma", 1, 20, 0.5),
                 _p("features", "blob", "max_sigma", "max sigma", 2, 50, 0.5),

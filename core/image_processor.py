@@ -21,7 +21,6 @@ class ImageProcessor:
     def apply_filter(self, image, filter_type, **kwargs):
         """Apply various filters to an image."""
         self.logger.info(f"Applying {filter_type} filter")
-        
         try:
             if filter_type == 'gaussian':
                 sigma = kwargs.get('sigma', DEFAULTS['filter']['gaussian']['sigma'])
@@ -59,7 +58,6 @@ class ImageProcessor:
     def enhance_contrast(self, image, method='rescale', **kwargs):
         """Enhance image contrast using various methods."""
         self.logger.info(f"Enhancing contrast using {method}")
-        
         try:
             if method == 'rescale':
                 p_low = kwargs.get('p_low', DEFAULTS['contrast']['rescale']['p_low'])
@@ -215,9 +213,11 @@ class ImageProcessor:
                 max_sigma = kwargs.get('max_sigma', DEFAULTS['features']['blob']['max_sigma'])
                 num_sigma = kwargs.get('num_sigma', DEFAULTS['features']['blob']['num_sigma'])
                 threshold = kwargs.get('threshold', DEFAULTS['features']['blob']['threshold'])
-                
+                p_lo, p_hi = kwargs.get('norm_percentiles', DEFAULTS['features']['blob']['norm_percentiles'])
+                lo, hi = np.percentile(image, [p_lo, p_hi])
+                scaled = np.clip((image.astype(float) - lo) / ((hi - lo) or 1.0), 0, 1)
                 blobs = feature.blob_log(
-                    image, 
+                    scaled, 
                     min_sigma=min_sigma,
                     max_sigma=max_sigma,
                     num_sigma=num_sigma,

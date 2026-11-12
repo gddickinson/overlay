@@ -25,7 +25,9 @@ DEFAULTS = {
         'watershed': {'low_marker': 30, 'high_marker': 150},
     },
     'features': {
-        'blob': {'min_sigma': 1, 'max_sigma': 10, 'num_sigma': 5, 'threshold': 0.1},
+        # norm_percentiles: the frame is scaled to 0-1 between these percentiles (and clipped) before blob_log, so
+        # `threshold` does not depend on the camera's intensity scale
+        'blob': {'min_sigma': 1, 'max_sigma': 10, 'num_sigma': 5, 'threshold': 0.1, 'norm_percentiles': (1, 99.8)},
         'corner': {'min_distance': 5, 'threshold': 0.1},
     },
 }
